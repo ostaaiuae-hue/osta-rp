@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OSTA Services — Field Operations Platform</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3248;
+    --accent: #4f8ef7;
+    --accent2: #38d9a9;
+    --warn: #ffa94d;
+    --danger: #ff6b6b;
+    --text: #e8eaf6;
+    --muted: #6b7280;
+    --sidebar-w: 220px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; font-size: 14px; }
+
+  /* SIDEBAR */
+  .sidebar { width: var(--sidebar-w); background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; position: fixed; top: 0; right: 0; height: 100vh; z-index: 100; overflow-y: auto; }
+  .logo { padding: 20px 16px 16px; border-bottom: 1px solid var(--border); }
+  .logo-title { font-size: 18px; font-weight: 700; color: var(--accent); letter-spacing: 2px; }
+  .logo-sub { font-size: 10px; color: var(--muted); letter-spacing: 3px; margin-top: 2px; }
+  .nav { flex: 1; padding: 12px 0; }
+  .nav-section { font-size: 10px; color: var(--muted); padding: 12px 16px 4px; letter-spacing: 1px; text-transform: uppercase; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 16px; cursor: pointer; color: var(--muted); transition: all .15s; font-size: 13px; border-right: 3px solid transparent; }
+  .nav-item:hover { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: rgba(79,142,247,.12); color: var(--accent); border-right-color: var(--accent); }
+  .nav-item .icon { font-size: 15px; width: 20px; text-align: center; }
+  .user-box { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 10px; }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; color: #fff; flex-shrink: 0; }
+  .user-name { font-size: 12px; font-weight: 600; }
+  .user-role { font-size: 10px; color: var(--muted); }
+
+  /* MAIN */
+  .main { margin-right: var(--sidebar-w); flex: 1; min-height: 100vh; }
+  .topbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 24px; height: 56px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+  .page-title { font-size: 16px; font-weight: 600; }
+  .topbar-actions { display: flex; align-items: center; gap: 10px; }
+  .btn { padding: 7px 16px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: all .15s; }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: #3a7bd5; }
+  .btn-outline { background: transparent; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { background: var(--surface2); }
+  .btn-danger { background: var(--danger); color: #fff; }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .content { padding: 24px; }
+
+  /* PAGE SECTIONS */
+  .page { display: none; }
+  .page.active { display: block; }
+
+  /* KPI CARDS */
+  .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .kpi-label { font-size: 11px; color: var(--muted); margin-bottom: 6px; text-transform: uppercase; letter-spacing: .5px; }
+  .kpi-val { font-size: 26px; font-weight: 700; color: var(--text); }
+  .kpi-sub { font-size: 11px; color: var(--accent2); margin-top: 4px; }
+  .kpi-icon { font-size: 22px; float: left; margin-left: 12px; margin-top: 4px; }
+
+  /* TABLES */
+  .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; margin-bottom: 24px; }
+  .table-header { padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--border); }
+  .table-title { font-size: 14px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  th { padding: 10px 16px; text-align: right; font-size: 11px; color: var(--muted); font-weight: 500; border-bottom: 1px solid var(--border); text-transform: uppercase; letter-spacing: .5px; background: rgba(0,0,0,.2); }
+  td { padding: 12px 16px; border-bottom: 1px solid rgba(255,255,255,.04); font-size: 13px; }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: rgba(255,255,255,.02); }
+
+  /* BADGES */
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: rgba(56,217,169,.15); color: var(--accent2); }
+  .badge-blue { background: rgba(79,142,247,.15); color: var(--accent); }
+  .badge-warn { background: rgba(255,169,77,.15); color: var(--warn); }
+  .badge-red { background: rgba(255,107,107,.15); color: var(--danger); }
+  .badge-gray { background: rgba(107,114,128,.15); color: var(--muted); }
+
+  /* FORMS */
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-group { display: flex; flex-direction: column; gap: 6px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 12px; color: var(--muted); font-weight: 500; }
+  input, select, textarea { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 9px 12px; color: var(--text); font-size: 13px; width: 100%; outline: none; transition: border .15s; font-family: inherit; }
+  input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+  textarea { resize: vertical; min-height: 80px; }
+  select option { background: var(--surface2); }
+
+  /* MODALS */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.7); z-index: 200; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 24px; width: 90%; max-width: 560px; max-height: 90vh; overflow-y: auto; }
+  .modal-title { font-size: 16px; font-weight: 600; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }
+  .close-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 18px; }
+
+  /* CHARTS */
+  .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 24px; }
+  .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .chart-title { font-size: 13px; font-weight: 600; margin-bottom: 16px; color: var(--muted); }
+  .chart-wrap { position: relative; height: 200px; }
+
+  /* WALLET */
+  .wallet-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .wallet-card { background: linear-gradient(135deg, var(--surface2), var(--surface)); border: 1px solid var(--border); border-radius: 16px; padding: 24px; }
+  .wallet-name { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+  .wallet-role { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+  .wallet-balance { font-size: 28px; font-weight: 700; color: var(--accent2); }
+  .wallet-currency { font-size: 13px; color: var(--muted); }
+  .wallet-actions { display: flex; gap: 8px; margin-top: 16px; }
+
+  /* SEARCH */
+  .search-bar { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; color: var(--text); font-size: 13px; width: 240px; outline: none; }
+  .search-bar:focus { border-color: var(--accent); }
+
+  /* STATS ROW */
+  .stats-row { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .stat-chip { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; font-size: 12px; }
+  .stat-chip span { font-weight: 700; color: var(--accent); }
+
+  /* TOAST */
+  .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: var(--accent2); color: #0f1117; padding: 10px 22px; border-radius: 8px; font-size: 13px; font-weight: 600; z-index: 999; display: none; }
+
+  /* PAYROLL */
+  .payroll-summary { background: var(--surface2); border-radius: 10px; padding: 16px; margin-bottom: 16px; display: flex; gap: 24px; flex-wrap: wrap; }
+  .payroll-item { text-align: center; }
+  .payroll-item .val { font-size: 20px; font-weight: 700; }
+  .payroll-item .lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* RESPONSIVE */
+  @media(max-width:768px) {
+    .sidebar { width: 60px; }
+    .nav-item span, .logo-sub, .logo-title, .user-name, .user-role, .nav-section { display: none; }
+    .main { margin-right: 60px; }
+    .charts-grid, .form-grid { grid-template-columns: 1fr; }
+    .kpi-grid { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- SIDEBAR -->
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-title">OSTA</div>
+    <div class="logo-sub">SERVICES</div>
+  </div>
+  <nav class="nav">
+    <div class="nav-section">رئيسي</div>
+    <div class="nav-item active" onclick="goTo('dashboard',this)"><span class="icon">📊</span><span>Dashboard</span></div>
+    <div class="nav-item" onclick="goTo('create-order',this)"><span class="icon">➕</span><span>Create Order</span></div>
+
+    <div class="nav-section">عمليات</div>
+    <div class="nav-item" onclick="goTo('orders',this)"><span class="icon">📋</span><span>Orders</span></div>
+    <div class="nav-item" onclick="goTo('customers',this)"><span class="icon">👥</span><span>Customers</span></div>
+    <div class="nav-item" onclick="goTo('quotations',this)"><span class="icon">📝</span><span>Quotations</span></div>
+    <div class="nav-item" onclick="goTo('reports',this)"><span class="icon">🔧</span><span>Service Reports</span></div>
+
+    <div class="nav-section">مالي</div>
+    <div class="nav-item" onclick="goTo('invoices',this)"><span class="icon">🧾</span><span>Invoices</span></div>
+    <div class="nav-item" onclick="goTo('expenses',this)"><span class="icon">💸</span><span>Expenses</span></div>
+    <div class="nav-item" onclick="goTo('wallets',this)"><span class="icon">👛</span><span>Wallets</span></div>
+    <div class="nav-item" onclick="goTo('payroll',this)"><span class="icon">💰</span><span>Payroll</span></div>
+    <div class="nav-item" onclick="goTo('financial-reports',this)"><span class="icon">📈</span><span>Reports</span></div>
+
+    <div class="nav-section">فريق</div>
+    <div class="nav-item" onclick="goTo('teams',this)"><span class="icon">🏢</span><span>Teams</span></div>
+    <div class="nav-item" onclick="goTo('employees',this)"><span class="icon">👤</span><span>Employees</span></div>
+
+    <div class="nav-section">نظام</div>
+    <div class="nav-item" onclick="goTo('audit',this)"><span class="icon">🔍</span><span>Audit Log</span></div>
+    <div class="nav-item" onclick="goTo('settings',this)"><span class="icon">⚙️</span><span>Settings</span></div>
+  </nav>
+  <div class="user-box">
+    <div class="avatar">A</div>
+    <div><div class="user-name">Amr Abdelhamid</div><div class="user-role">ADMIN</div></div>
+  </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+  <div class="topbar">
+    <div class="page-title" id="topbar-title">Dashboard</div>
+    <div class="topbar-actions">
+      <input class="search-bar" placeholder="🔍  بحث..." id="global-search">
+      <button class="btn btn-primary btn-sm" onclick="goTo('create-order', document.querySelector('[onclick*=create-order]'))">+ طلب جديد</button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- ===== DASHBOARD ===== -->
+    <div class="page active" id="page-dashboard">
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">📋 إجمالي الطلبات</div><div class="kpi-val" id="kpi-orders">0</div><div class="kpi-sub">هذا الشهر</div></div>
+        <div class="kpi-card"><div class="kpi-label">💰 الإيرادات</div><div class="kpi-val" id="kpi-revenue">0 AED</div><div class="kpi-sub">مدفوعة</div></div>
+        <div class="kpi-card"><div class="kpi-label">👥 العملاء</div><div class="kpi-val" id="kpi-customers">0</div><div class="kpi-sub">إجمالي</div></div>
+        <div class="kpi-card"><div class="kpi-label">⏳ معلقة</div><div class="kpi-val" id="kpi-pending">0</div><div class="kpi-sub">تحتاج إجراء</div></div>
+        <div class="kpi-card"><div class="kpi-label">💸 المصاريف</div><div class="kpi-val" id="kpi-expenses">0 AED</div><div class="kpi-sub">هذا الشهر</div></div>
+        <div class="kpi-card"><div class="kpi-label">👤 الموظفين</div><div class="kpi-val" id="kpi-employees">0</div><div class="kpi-sub">نشطين</div></div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card"><div class="chart-title">الطلبات حسب الحالة</div><div class="chart-wrap"><canvas id="chart-status"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">الإيرادات الأسبوعية (AED)</div><div class="chart-wrap"><canvas id="chart-revenue"></canvas></div></div>
+      </div>
+      <div class="table-card">
+        <div class="table-header"><span class="table-title">آخر الطلبات</span><button class="btn btn-outline btn-sm" onclick="goTo('orders',document.querySelector('[onclick*=orders]'))">عرض الكل</button></div>
+        <table><thead><tr><th>رقم الطلب</th><th>العميل</th><th>الخدمة</th><th>الفريق</th><th>الحالة</th><th>المبلغ</th></tr></thead>
+        <tbody id="dash-recent-orders"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== CREATE ORDER ===== -->
+    <div class="page" id="page-create-order">
+      <div class="table-card" style="padding:24px;">
+        <div class="table-title" style="margin-bottom:20px;font-size:15px;">📋 إنشاء طلب جديد</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>العميل *</label>
+            <select id="co-customer"><option value="">-- اختر عميل --</option></select>
+          </div>
+          <div class="form-group">
+            <label>أو اسم عميل جديد</label>
+            <input id="co-new-customer" placeholder="اسم العميل الجديد">
+          </div>
+          <div class="form-group">
+            <label>رقم الهاتف</label>
+            <input id="co-phone" placeholder="+971 5X XXX XXXX">
+          </div>
+          <div class="form-group">
+            <label>الخدمة *</label>
+            <select id="co-service">
+              <option>AC Cleaning | تنظيف مكيف</option>
+              <option>AC Repair | تصليح مكيف</option>
+              <option>AC Coil Cleaning | تنظيف كويل</option>
+              <option>AC Installation | تركيب مكيف</option>
+              <option>AC Gas Refill | تعبئة فريون</option>
+              <option>AC AMC | عقد صيانة سنوي</option>
+              <option>Electrical Services | كهرباء</option>
+              <option>Cleaning Services | تنظيف</option>
+              <option>General Maintenance | صيانة عامة</option>
+              <option>Interior Finishing | تشطيبات</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>الفريق</label>
+            <select id="co-team"><option value="">-- اختر فريق --</option></select>
+          </div>
+          <div class="form-group">
+            <label>الموظف المكلف</label>
+            <select id="co-employee"><option value="">-- اختر موظف --</option></select>
+          </div>
+          <div class="form-group">
+            <label>التاريخ والوقت *</label>
+            <input type="datetime-local" id="co-datetime">
+          </div>
+          <div class="form-group">
+            <label>المبلغ (AED)</label>
+            <input type="number" id="co-amount" placeholder="0">
+          </div>
+          <div class="form-group">
+            <label>الإمارة</label>
+            <select id="co-emirate">
+              <option>عجمان</option><option>دبي</option><option>أبوظبي</option>
+              <option>الشارقة</option><option>العين</option><option>رأس الخيمة</option><option>أم القيوين</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>الحالة</label>
+            <select id="co-status">
+              <option value="pending">Pending | معلق</option>
+              <option value="confirmed">Confirmed | مؤكد</option>
+              <option value="in-progress">In Progress | جاري</option>
+              <option value="completed">Completed | مكتمل</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>العنوان التفصيلي</label>
+            <input id="co-address" placeholder="رقم الشقة، المبنى، المنطقة...">
+          </div>
+          <div class="form-group full">
+            <label>ملاحظات</label>
+            <textarea id="co-notes" placeholder="أي تفاصيل إضافية..."></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:20px;">
+          <button class="btn btn-primary" onclick="createOrder()">✅ إنشاء الطلب</button>
+          <button class="btn btn-outline" onclick="clearOrderForm()">🔄 مسح</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== ORDERS ===== -->
+    <div class="page" id="page-orders">
+      <div class="stats-row" id="orders-stats"></div>
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">📋 جميع الطلبات</span>
+          <div style="display:flex;gap:8px;">
+            <select class="search-bar" style="width:150px;" id="filter-status" onchange="renderOrders()">
+              <option value="">كل الحالات</option>
+              <option value="pending">معلق</option>
+              <option value="confirmed">مؤكد</option>
+              <option value="in-progress">جاري</option>
+              <option value="completed">مكتمل</option>
+              <option value="cancelled">ملغي</option>
+            </select>
+            <button class="btn btn-primary btn-sm" onclick="goTo('create-order',document.querySelector('[onclick*=create-order]'))">+ جديد</button>
+          </div>
+        </div>
+        <table><thead><tr><th>رقم</th><th>العميل</th><th>الخدمة</th><th>الفريق</th><th>التاريخ</th><th>الإمارة</th><th>المبلغ</th><th>الحالة</th><th>إجراء</th></tr></thead>
+        <tbody id="orders-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== CUSTOMERS ===== -->
+    <div class="page" id="page-customers">
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">👥 العملاء</span>
+          <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-customer')">+ عميل جديد</button>
+        </div>
+        <table><thead><tr><th>الاسم</th><th>الهاتف</th><th>الإمارة</th><th>عدد الطلبات</th><th>إجمالي الإنفاق</th><th>إجراء</th></tr></thead>
+        <tbody id="customers-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== QUOTATIONS ===== -->
+    <div class="page" id="page-quotations">
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">📝 عروض الأسعار</span>
+          <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-quotation')">+ عرض سعر جديد</button>
+        </div>
+        <table><thead><tr><th>رقم</th><th>العميل</th><th>الخدمة</th><th>المبلغ</th><th>التاريخ</th><th>الحالة</th><th>إجراء</th></tr></thead>
+        <tbody id="quotations-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== SERVICE REPORTS ===== -->
+    <div class="page" id="page-reports">
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">🔧 تقارير الخدمة</span>
+          <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-report')">+ تقرير جديد</button>
+        </div>
+        <table><thead><tr><th>رقم الطلب</th><th>الفني</th><th>الخدمة</th><th>المشكلة</th><th>الحل</th><th>التاريخ</th><th>التقييم</th></tr></thead>
+        <tbody id="reports-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== INVOICES ===== -->
+    <div class="page" id="page-invoices">
+      <div class="stats-row" id="invoices-stats"></div>
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">🧾 الفواتير</span>
+          <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-invoice')">+ فاتورة جديدة</button>
+        </div>
+        <table><thead><tr><th>رقم</th><th>العميل</th><th>المبلغ</th><th>التاريخ</th><th>الاستحقاق</th><th>الحالة</th><th>إجراء</th></tr></thead>
+        <tbody id="invoices-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== EXPENSES ===== -->
+    <div class="page" id="page-expenses">
+      <div class="kpi-grid" style="grid-template-columns:repeat(3,1fr);">
+        <div class="kpi-card"><div class="kpi-label">💸 إجمالي المصاريف</div><div class="kpi-val" id="exp-total">0 AED</div></div>
+        <div class="kpi-card"><div class="kpi-label">📦 قطع غيار</div><div class="kpi-val" id="exp-parts">0 AED</div></div>
+        <div class="kpi-card"><div class="kpi-label">🚗 مواصلات</div><div class="kpi-val" id="exp-transport">0 AED</div></div>
+      </div>
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">💸 المصاريف</span>
+          <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-expense')">+ مصروف جديد</button>
+        </div>
+        <table><thead><tr><th>الوصف</th><th>الفئة</th><th>المبلغ</th><th>الموظف</th><th>التاريخ</th><th>إجراء</th></tr></thead>
+        <tbody id="expenses-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== WALLETS ===== -->
+    <div class="page" id="page-wallets">
+      <div class="wallet-grid" id="wallets-grid"></div>
+      <div class="table-card">
+        <div class="table-header"><span class="table-title">👛 حركات المحافظ</span></div>
+        <table><thead><tr><th>الموظف</th><th>النوع</th><th>المبلغ</th><th>الوصف</th><th>التاريخ</th></tr></thead>
+        <tbody id="wallet-history"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== PAYROLL ===== -->
+    <div class="page" id="page-payroll">
+      <div class="payroll-summary" id="payroll-summary"></div>
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">💰 الرواتب</span>
+          <button class="btn btn-primary btn-sm" onclick="processPayroll()">✅ صرف الرواتب</button>
+        </div>
+        <table><thead><tr><th>الموظف</th><th>الوظيفة</th><th>الراتب الأساسي</th><th>الحوافز</th><th>الخصومات</th><th>الصافي</th><th>الحالة</th></tr></thead>
+        <tbody id="payroll-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== FINANCIAL REPORTS ===== -->
+    <div class="page" id="page-financial-reports">
+      <div class="kpi-grid">
+        <div class="kpi-card"><div class="kpi-label">📈 الإيرادات الكلية</div><div class="kpi-val" id="fr-revenue">0 AED</div></div>
+        <div class="kpi-card"><div class="kpi-label">💸 المصاريف الكلية</div><div class="kpi-val" id="fr-expenses">0 AED</div></div>
+        <div class="kpi-card"><div class="kpi-label">💵 صافي الربح</div><div class="kpi-val" id="fr-profit">0 AED</div></div>
+        <div class="kpi-card"><div class="kpi-label">📊 هامش الربح</div><div class="kpi-val" id="fr-margin">0%</div></div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card"><div class="chart-title">الإيرادات vs المصاريف</div><div class="chart-wrap"><canvas id="chart-finance"></canvas></div></div>
+        <div class="chart-card"><div class="chart-title">الطلبات حسب الخدمة</div><div class="chart-wrap"><canvas id="chart-services"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- ===== TEAMS ===== -->
+    <div class="page" id="page-teams">
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">🏢 الفرق</span>
+          <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-team')">+ فريق جديد</button>
+        </div>
+        <table><thead><tr><th>اسم الفريق</th><th>التخصص</th><th>عدد الأعضاء</th><th>الطلبات المكتملة</th><th>الحالة</th><th>إجراء</th></tr></thead>
+        <tbody id="teams-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== EMPLOYEES ===== -->
+    <div class="page" id="page-employees">
+      <div class="table-card">
+        <div class="table-header">
+          <span class="table-title">👤 الموظفون</span>
+          <button class="btn btn-primary btn-sm" onclick="openModal('modal-add-employee')">+ موظف جديد</button>
+        </div>
+        <table><thead><tr><th>الكود</th><th>الاسم</th><th>الوظيفة</th><th>الفريق</th><th>الهاتف</th><th>الراتب</th><th>الحالة</th><th>إجراء</th></tr></thead>
+        <tbody id="employees-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== AUDIT LOG ===== -->
+    <div class="page" id="page-audit">
+      <div class="table-card">
+        <div class="table-header"><span class="table-title">🔍 سجل العمليات</span></div>
+        <table><thead><tr><th>الوقت</th><th>المستخدم</th><th>العملية</th><th>التفاصيل</th></tr></thead>
+        <tbody id="audit-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- ===== SETTINGS ===== -->
+    <div class="page" id="page-settings">
+      <div class="table-card" style="padding:24px;">
+        <div class="table-title" style="margin-bottom:20px;">⚙️ إعدادات النظام</div>
+        <div class="form-grid">
+          <div class="form-group"><label>اسم الشركة</label><input value="OSTA Services" id="set-company"></div>
+          <div class="form-group"><label>البريد الإلكتروني</label><input value="info@ostaservices.com" id="set-email"></div>
+          <div class="form-group"><label>الهاتف</label><input value="+971568676036" id="set-phone"></div>
+          <div class="form-group"><label>العملة</label><select id="set-currency"><option>AED</option><option>USD</option></select></div>
+          <div class="form-group full"><label>العنوان</label><input value="B9 Paradise Lake Tower, Emirates City, Ajman" id="set-address"></div>
+        </div>
+        <button class="btn btn-primary" style="margin-top:16px;" onclick="showToast('تم حفظ الإعدادات ✓')">💾 حفظ</button>
+        <div style="margin-top:24px;padding-top:24px;border-top:1px solid var(--border);">
+          <div style="color:var(--danger);font-weight:600;margin-bottom:12px;">⚠️ منطقة الخطر</div>
+          <button class="btn btn-danger btn-sm" onclick="if(confirm('هل أنت متأكد؟ سيتم حذف كل البيانات!')) resetSystem()">🗑️ System Reset</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /content -->
+</main>
+
+<!-- ===== MODALS ===== -->
+
+<!-- Add Customer -->
+<div class="modal-overlay" id="modal-add-customer">
+  <div class="modal">
+    <div class="modal-title">👥 عميل جديد <button class="close-btn" onclick="closeModal('modal-add-customer')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>الاسم *</label><input id="cust-name" placeholder="اسم العميل"></div>
+      <div class="form-group"><label>الهاتف</label><input id="cust-phone" placeholder="+971..."></div>
+      <div class="form-group"><label>الإمارة</label><select id="cust-emirate"><option>عجمان</option><option>دبي</option><option>أبوظبي</option><option>الشارقة</option><option>العين</option><option>رأس الخيمة</option><option>أم القيوين</option></select></div>
+      <div class="form-group full"><label>العنوان</label><input id="cust-address" placeholder="المنطقة / المبنى..."></div>
+      <div class="form-group full"><label>ملاحظات</label><textarea id="cust-notes" placeholder="أي ملاحظات..."></textarea></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="addCustomer()">✅ إضافة</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-add-customer')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Employee -->
+<div class="modal-overlay" id="modal-add-employee">
+  <div class="modal">
+    <div class="modal-title">👤 موظف جديد <button class="close-btn" onclick="closeModal('modal-add-employee')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>الاسم الكامل *</label><input id="emp-name" placeholder="الاسم بالكامل"></div>
+      <div class="form-group"><label>الوظيفة</label><select id="emp-role"><option>AC Technician</option><option>Cleaning Specialist</option><option>Electrician</option><option>General Technician</option><option>Admin</option><option>Team Leader</option></select></div>
+      <div class="form-group"><label>الفريق</label><select id="emp-team-sel"><option value="">-- لا يوجد --</option></select></div>
+      <div class="form-group"><label>الهاتف</label><input id="emp-phone" placeholder="+971..."></div>
+      <div class="form-group"><label>الراتب الأساسي (AED)</label><input type="number" id="emp-salary" placeholder="0"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="addEmployee()">✅ إضافة</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-add-employee')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Team -->
+<div class="modal-overlay" id="modal-add-team">
+  <div class="modal">
+    <div class="modal-title">🏢 فريق جديد <button class="close-btn" onclick="closeModal('modal-add-team')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>اسم الفريق *</label><input id="team-name" placeholder="مثال: فريق المكيفات"></div>
+      <div class="form-group full"><label>التخصص</label><select id="team-spec"><option>AC Services</option><option>Cleaning</option><option>Electrical</option><option>General Maintenance</option><option>Mixed</option></select></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="addTeam()">✅ إضافة</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-add-team')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Expense -->
+<div class="modal-overlay" id="modal-add-expense">
+  <div class="modal">
+    <div class="modal-title">💸 مصروف جديد <button class="close-btn" onclick="closeModal('modal-add-expense')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>الوصف *</label><input id="exp-desc" placeholder="وصف المصروف"></div>
+      <div class="form-group"><label>الفئة</label><select id="exp-cat"><option>قطع غيار</option><option>مواصلات</option><option>أدوات</option><option>إيجار</option><option>كهرباء / مياه</option><option>تسويق</option><option>أخرى</option></select></div>
+      <div class="form-group"><label>المبلغ (AED)</label><input type="number" id="exp-amount" placeholder="0"></div>
+      <div class="form-group"><label>الموظف</label><select id="exp-emp"><option value="">-- عام --</option></select></div>
+      <div class="form-group"><label>التاريخ</label><input type="date" id="exp-date"></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="addExpense()">✅ إضافة</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-add-expense')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Invoice -->
+<div class="modal-overlay" id="modal-add-invoice">
+  <div class="modal">
+    <div class="modal-title">🧾 فاتورة جديدة <button class="close-btn" onclick="closeModal('modal-add-invoice')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>العميل *</label><select id="inv-customer"><option value="">-- اختر عميل --</option></select></div>
+      <div class="form-group"><label>المبلغ (AED)</label><input type="number" id="inv-amount" placeholder="0"></div>
+      <div class="form-group"><label>تاريخ الاستحقاق</label><input type="date" id="inv-due"></div>
+      <div class="form-group full"><label>الوصف</label><textarea id="inv-desc" placeholder="تفاصيل الخدمة..."></textarea></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="addInvoice()">✅ إنشاء</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-add-invoice')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Quotation -->
+<div class="modal-overlay" id="modal-add-quotation">
+  <div class="modal">
+    <div class="modal-title">📝 عرض سعر جديد <button class="close-btn" onclick="closeModal('modal-add-quotation')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group full"><label>العميل *</label><select id="quot-customer"><option value="">-- اختر عميل --</option></select></div>
+      <div class="form-group full"><label>الخدمة</label><input id="quot-service" placeholder="وصف الخدمة المطلوبة"></div>
+      <div class="form-group"><label>المبلغ (AED)</label><input type="number" id="quot-amount" placeholder="0"></div>
+      <div class="form-group"><label>صلاحية العرض (أيام)</label><input type="number" id="quot-validity" value="7"></div>
+      <div class="form-group full"><label>ملاحظات</label><textarea id="quot-notes" placeholder="شروط وملاحظات..."></textarea></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="addQuotation()">✅ إنشاء</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-add-quotation')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- Add Report -->
+<div class="modal-overlay" id="modal-add-report">
+  <div class="modal">
+    <div class="modal-title">🔧 تقرير خدمة <button class="close-btn" onclick="closeModal('modal-add-report')">✕</button></div>
+    <div class="form-grid">
+      <div class="form-group"><label>رقم الطلب</label><select id="rep-order"><option value="">-- اختر طلب --</option></select></div>
+      <div class="form-group"><label>الفني</label><select id="rep-tech"><option value="">-- اختر فني --</option></select></div>
+      <div class="form-group full"><label>المشكلة</label><textarea id="rep-problem" placeholder="وصف المشكلة..."></textarea></div>
+      <div class="form-group full"><label>الحل</label><textarea id="rep-solution" placeholder="الإجراء المتخذ..."></textarea></div>
+      <div class="form-group"><label>تقييم العميل</label><select id="rep-rating"><option>⭐⭐⭐⭐⭐ ممتاز</option><option>⭐⭐⭐⭐ جيد جداً</option><option>⭐⭐⭐ جيد</option><option>⭐⭐ مقبول</option><option>⭐ ضعيف</option></select></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button class="btn btn-primary" onclick="addReport()">✅ حفظ</button>
+      <button class="btn btn-outline" onclick="closeModal('modal-add-report')">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ========== SUPABASE ==========
+const SUPA_URL = 'https://bkfrdshsyehzhlttdpuu.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJrZnJkc2hzeWVoemhsdHRkcHV1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI5Mjk3MDUsImV4cCI6MjA5ODUwNTcwNX0.2IyIDodIlsNNhLR_A4F5LViwwSAm5t-n-ngr6hQ-jfo';
+const { createClient } = supabase;
+const sb = createClient(SUPA_URL, SUPA_KEY);
+
+// In-memory cache
+let db = { orders:[], customers:[], employees:[], teams:[], expenses:[], invoices:[], quotations:[], reports:[], wallets:[], audit:[] };
+
+// ========== SUPABASE HELPERS ==========
+async function sbGet(table, order='created_at'){
+  const {data,error} = await sb.from(table).select('*').order(order, {ascending:false});
+  if(error){ console.error(table, error); return []; }
+  return data||[];
+}
+async function sbInsert(table, row){
+  const {data,error} = await sb.from(table).insert(row).select();
+  if(error){ console.error(table, error); showToast('❌ خطأ: '+error.message); return null; }
+  return data?.[0];
+}
+async function sbUpdate(table, id, updates){
+  const {error} = await sb.from(table).update(updates).eq('id',id);
+  if(error){ console.error(error); showToast('❌ خطأ: '+error.message); }
+}
+async function sbDelete(table, id){
+  const {error} = await sb.from(table).delete().eq('id',id);
+  if(error){ console.error(error); }
+}
+
+// ========== LOAD ALL DATA ==========
+async function loadAll(){
+  showLoading(true);
+  const [orders,customers,employees,teams,expenses,invoices,quotations,reports,wallets,walletH,audit] = await Promise.all([
+    sbGet('orders'), sbGet('customers'), sbGet('employees','id'), sbGet('teams'),
+    sbGet('expenses'), sbGet('invoices'), sbGet('quotations'), sbGet('service_reports'),
+    sbGet('wallets','employee_id'), sbGet('wallet_history'), sbGet('audit_log')
+  ]);
+  db.orders = orders.map(o=>({...o, num:o.num, customerName:o.customer_name, customerId:o.customer_id, datetime:o.datetime, amount:o.amount, status:o.status, team:o.team, employee:o.employee, emirate:o.emirate, address:o.address, notes:o.notes}));
+  db.customers = customers;
+  db.employees = employees;
+  db.teams = teams;
+  db.expenses = expenses.map(e=>({...e, desc:e.description, amount:e.amount, category:e.category}));
+  db.invoices = invoices.map(i=>({...i, num:i.num, customer:i.customer, amount:i.amount, due:i.due_date}));
+  db.quotations = quotations.map(q=>({...q, num:q.num}));
+  db.reports = reports.map(r=>({...r, order:r.order_num, tech:r.technician, problem:r.problem, solution:r.solution, rating:r.rating}));
+  db.wallets = wallets.map(w=>({...w, empId:w.employee_id, empName:w.employee_name, balance:w.balance, history: walletH.filter(h=>h.employee_id===w.employee_id)}));
+  db.audit = audit.map(a=>({time: new Date(a.created_at).toLocaleString('ar-AE'), user:a.user_name, action:a.action, details:a.details}));
+  showLoading(false);
+  renderDashboard();
+}
+
+function showLoading(on){
+  let el = document.getElementById('loading-overlay');
+  if(!el){
+    el = document.createElement('div');
+    el.id='loading-overlay';
+    el.style.cssText='position:fixed;inset:0;background:rgba(15,17,23,.85);z-index:9999;display:flex;align-items:center;justify-content:center;font-size:18px;color:#4f8ef7;';
+    el.innerHTML='<div style="text-align:center"><div style="font-size:32px;margin-bottom:12px">⏳</div>جاري تحميل البيانات...</div>';
+    document.body.appendChild(el);
+  }
+  el.style.display = on ? 'flex' : 'none';
+}
+
+async function addAudit(user, action, details){
+  const row = {user_name:user, action, details};
+  const res = await sbInsert('audit_log', row);
+  if(res) db.audit.unshift({time:new Date().toLocaleString('ar-AE'), user, action, details});
+}
+
+// ========== NAVIGATION ==========
+function goTo(page, el){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  const pg = document.getElementById('page-'+page);
+  if(pg) pg.classList.add('active');
+  if(el) el.classList.add('active');
+  const titles = {dashboard:'Dashboard',  'create-order':'إنشاء طلب جديد', orders:'الطلبات', customers:'العملاء', quotations:'عروض الأسعار', reports:'تقارير الخدمة', invoices:'الفواتير', expenses:'المصاريف', wallets:'المحافظ', payroll:'الرواتب', 'financial-reports':'التقارير المالية', teams:'الفرق', employees:'الموظفون', audit:'سجل العمليات', settings:'الإعدادات'};
+  document.getElementById('topbar-title').textContent = titles[page]||page;
+  refreshPage(page);
+}
+
+function refreshPage(page){
+  if(page==='dashboard') renderDashboard();
+  if(page==='orders') renderOrders();
+  if(page==='customers') renderCustomers();
+  if(page==='employees') renderEmployees();
+  if(page==='teams') renderTeams();
+  if(page==='expenses') renderExpenses();
+  if(page==='invoices') renderInvoices();
+  if(page==='quotations') renderQuotations();
+  if(page==='reports') renderReports();
+  if(page==='wallets') renderWallets();
+  if(page==='payroll') renderPayroll();
+  if(page==='financial-reports') renderFinancialReports();
+  if(page==='audit') renderAudit();
+  if(page==='create-order') populateOrderForm();
+}
+
+// ========== MODAL ==========
+function openModal(id){
+  document.getElementById(id).classList.add('open');
+  if(id==='modal-add-invoice'||id==='modal-add-quotation') populateCustomerSelects();
+  if(id==='modal-add-report'){ populateOrderSelects(); populateEmpSelects(); }
+  if(id==='modal-add-expense') populateEmpSelects2();
+}
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+
+// ========== TOAST ==========
+function showToast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.style.display='block'; setTimeout(()=>t.style.display='none',2500); }
+
+// ========== AUDIT ==========
+function addAudit(user, action, details){
+  db.audit.unshift({time: new Date().toLocaleString('ar-AE'), user, action, details});
+  if(db.audit.length>200) db.audit=db.audit.slice(0,200);
+  save('audit', db.audit);
+}
+
+// ========== STATUS BADGE ==========
+function statusBadge(s){
+  const map = {pending:'badge-warn', confirmed:'badge-blue', 'in-progress':'badge-blue', completed:'badge-green', cancelled:'badge-red', paid:'badge-green', unpaid:'badge-warn', overdue:'badge-red', accepted:'badge-green', rejected:'badge-red', draft:'badge-gray'};
+  const label = {pending:'معلق', confirmed:'مؤكد', 'in-progress':'جاري', completed:'مكتمل', cancelled:'ملغي', paid:'مدفوع', unpaid:'غير مدفوع', overdue:'متأخر', accepted:'مقبول', rejected:'مرفوض', draft:'مسودة'};
+  return `<span class="badge ${map[s]||'badge-gray'}">${label[s]||s}</span>`;
+}
+
+// ========== DASHBOARD ==========
+function renderDashboard(){
+  const paid = db.orders.filter(o=>o.status==='completed').reduce((s,o)=>s+(+o.amount||0),0);
+  const pending = db.orders.filter(o=>['pending','confirmed'].includes(o.status)).length;
+  const expTotal = db.expenses.reduce((s,e)=>s+(+e.amount||0),0);
+  document.getElementById('kpi-orders').textContent = db.orders.length;
+  document.getElementById('kpi-revenue').textContent = paid.toLocaleString()+' AED';
+  document.getElementById('kpi-customers').textContent = db.customers.length;
+  document.getElementById('kpi-pending').textContent = pending;
+  document.getElementById('kpi-expenses').textContent = expTotal.toLocaleString()+' AED';
+  document.getElementById('kpi-employees').textContent = db.employees.filter(e=>e.status==='active').length;
+
+  // Recent orders
+  const tbody = document.getElementById('dash-recent-orders');
+  const recent = [...db.orders].reverse().slice(0,8);
+  tbody.innerHTML = recent.length ? recent.map(o=>`<tr>
+    <td>#${o.num}</td><td>${o.customerName||'-'}</td><td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.service||'-'}</td>
+    <td>${o.team||'-'}</td><td>${statusBadge(o.status)}</td><td>${(+o.amount||0).toLocaleString()} AED</td>
+  </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">لا توجد طلبات بعد</td></tr>';
+
+  // Charts
+  renderDashCharts();
+}
+
+function renderDashCharts(){
+  const statusCount = {pending:0, confirmed:0, 'in-progress':0, completed:0, cancelled:0};
+  db.orders.forEach(o=>{ if(statusCount[o.status]!==undefined) statusCount[o.status]++; });
+
+  const c1 = document.getElementById('chart-status');
+  if(c1._chart) c1._chart.destroy();
+  c1._chart = new Chart(c1, { type:'doughnut', data:{
+    labels:['معلق','مؤكد','جاري','مكتمل','ملغي'],
+    datasets:[{data:Object.values(statusCount), backgroundColor:['#ffa94d','#4f8ef7','#748ffc','#38d9a9','#ff6b6b'], borderWidth:0}]
+  }, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom', labels:{color:'#6b7280', font:{size:11}, boxWidth:12}}}}});
+
+  // Weekly revenue
+  const days=['الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'];
+  const weekly = Array(7).fill(0);
+  const now = new Date();
+  db.orders.filter(o=>o.status==='completed').forEach(o=>{
+    const d = new Date(o.datetime||o.created);
+    const diff = Math.floor((now-d)/(1000*60*60*24));
+    if(diff<7) weekly[d.getDay()] += (+o.amount||0);
+  });
+  const c2 = document.getElementById('chart-revenue');
+  if(c2._chart) c2._chart.destroy();
+  c2._chart = new Chart(c2, { type:'bar', data:{
+    labels:days, datasets:[{label:'AED', data:weekly, backgroundColor:'rgba(79,142,247,.6)', borderRadius:6}]
+  }, options:{responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{ticks:{color:'#6b7280'}}, y:{ticks:{color:'#6b7280'}, grid:{color:'rgba(255,255,255,.05)'}}}}});
+}
+
+// ========== ORDERS ==========
+function populateOrderForm(){
+  const cSel = document.getElementById('co-customer');
+  cSel.innerHTML = '<option value="">-- اختر عميل --</option>' + db.customers.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+  const tSel = document.getElementById('co-team');
+  tSel.innerHTML = '<option value="">-- اختر فريق --</option>' + db.teams.map(t=>`<option value="${t.name}">${t.name}</option>`).join('');
+  const eSel = document.getElementById('co-employee');
+  eSel.innerHTML = '<option value="">-- اختر موظف --</option>' + db.employees.map(e=>`<option value="${e.name}">${e.name}</option>`).join('');
+  document.getElementById('co-datetime').value = new Date().toISOString().slice(0,16);
+}
+
+async function createOrder(){
+  const custId = document.getElementById('co-customer').value;
+  const newCust = document.getElementById('co-new-customer').value.trim();
+  let customerName = '';
+  let finalCustId = custId||null;
+  if(custId){ customerName = db.customers.find(c=>c.id===custId)?.name||''; }
+  else if(newCust){
+    customerName = newCust;
+    const res = await sbInsert('customers',{name:newCust, phone:document.getElementById('co-phone').value, emirate:document.getElementById('co-emirate').value});
+    if(res){ db.customers.unshift(res); finalCustId=res.id; }
+  }
+  if(!customerName){ showToast('⚠️ اختر أو أدخل اسم العميل'); return; }
+  const row = {
+    customer_name: customerName,
+    customer_id: finalCustId,
+    phone: document.getElementById('co-phone').value,
+    service: document.getElementById('co-service').value,
+    team: document.getElementById('co-team').value,
+    employee: document.getElementById('co-employee').value,
+    datetime: document.getElementById('co-datetime').value||null,
+    amount: +document.getElementById('co-amount').value||0,
+    emirate: document.getElementById('co-emirate').value,
+    status: document.getElementById('co-status').value,
+    address: document.getElementById('co-address').value,
+    notes: document.getElementById('co-notes').value
+  };
+  const res = await sbInsert('orders', row);
+  if(res){
+    db.orders.unshift({...res, num:res.num, customerName:res.customer_name});
+    await addAudit('Admin','إنشاء طلب',`#${res.num} — ${customerName}`);
+    clearOrderForm(); showToast(`✅ تم إنشاء الطلب #${res.num}`);
+    renderDashboard();
+  }
+}
+
+function clearOrderForm(){
+  ['co-new-customer','co-phone','co-amount','co-address','co-notes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('co-customer').value='';
+  document.getElementById('co-datetime').value=new Date().toISOString().slice(0,16);
+}
+
+function renderOrders(){
+  const filter = document.getElementById('filter-status')?.value||'';
+  let orders = filter ? db.orders.filter(o=>o.status===filter) : db.orders;
+  orders = [...orders].reverse();
+  document.getElementById('orders-tbody').innerHTML = orders.length ? orders.map(o=>`<tr>
+    <td>#${o.num}</td><td>${o.customerName}</td>
+    <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${o.service}</td>
+    <td>${o.team||'-'}</td>
+    <td>${o.datetime ? new Date(o.datetime).toLocaleDateString('ar-AE') : '-'}</td>
+    <td>${o.emirate||'-'}</td>
+    <td>${(+o.amount||0).toLocaleString()} AED</td>
+    <td>${statusBadge(o.status)}</td>
+    <td>
+      <select onchange="changeOrderStatus('${o.id}',this.value)" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:3px 6px;border-radius:6px;font-size:11px;">
+        ${['pending','confirmed','in-progress','completed','cancelled'].map(s=>`<option value="${s}" ${o.status===s?'selected':''}>${s}</option>`).join('')}
+      </select>
+    </td>
+  </tr>`).join('') : '<tr><td colspan="9" style="text-align:center;color:var(--muted);padding:24px;">لا توجد طلبات</td></tr>';
+
+  const stats = document.getElementById('orders-stats');
+  const total = db.orders.reduce((s,o)=>s+(+o.amount||0),0);
+  const completed = db.orders.filter(o=>o.status==='completed').length;
+  stats.innerHTML = `<div class="stat-chip">الإجمالي: <span>${db.orders.length}</span></div>
+    <div class="stat-chip">مكتمل: <span>${completed}</span></div>
+    <div class="stat-chip">معلق: <span>${db.orders.filter(o=>o.status==='pending').length}</span></div>
+    <div class="stat-chip">قيمة الطلبات: <span>${total.toLocaleString()} AED</span></div>`;
+}
+
+async function changeOrderStatus(id, status){
+  await sbUpdate('orders', id, {status});
+  const o=db.orders.find(x=>x.id===id);
+  if(o){ o.status=status; await addAudit('Admin','تغيير حالة طلب',`#${o.num} → ${status}`); showToast('✅ تم التحديث'); renderDashboard(); }
+}
+
+// ========== CUSTOMERS ==========
+async function addCustomer(){
+  const name = document.getElementById('cust-name').value.trim();
+  if(!name){ showToast('⚠️ أدخل اسم العميل'); return; }
+  const res = await sbInsert('customers',{name, phone:document.getElementById('cust-phone').value, emirate:document.getElementById('cust-emirate').value, address:document.getElementById('cust-address').value, notes:document.getElementById('cust-notes').value});
+  if(res){
+    db.customers.unshift(res);
+    await addAudit('Admin','إضافة عميل',name);
+    closeModal('modal-add-customer');
+    ['cust-name','cust-phone','cust-address','cust-notes'].forEach(i=>document.getElementById(i).value='');
+    renderCustomers(); showToast('✅ تم إضافة العميل');
+  }
+}
+
+function renderCustomers(){
+  document.getElementById('customers-tbody').innerHTML = db.customers.length ? db.customers.map(c=>{
+    const orders = db.orders.filter(o=>o.customerName===c.name);
+    const spent = orders.reduce((s,o)=>s+(+o.amount||0),0);
+    return `<tr><td>${c.name}</td><td>${c.phone||'-'}</td><td>${c.emirate||'-'}</td><td>${orders.length}</td><td>${spent.toLocaleString()} AED</td><td><button class="btn btn-danger btn-sm" onclick="deleteCustomer('${c.id}')">🗑️</button></td></tr>`;
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">لا يوجد عملاء</td></tr>';
+}
+
+async function deleteCustomer(id){ if(confirm('حذف العميل؟')){ await sbDelete('customers',id); db.customers=db.customers.filter(c=>c.id!==id); renderCustomers(); } }
+
+// ========== EMPLOYEES ==========
+async function addEmployee(){
+  const name = document.getElementById('emp-name').value.trim();
+  if(!name){ showToast('⚠️ أدخل اسم الموظف'); return; }
+  const newId = 'EMP-'+String(db.employees.length+1).padStart(3,'0');
+  const emp = {id:newId, name, role:document.getElementById('emp-role').value, team:document.getElementById('emp-team-sel').value, phone:document.getElementById('emp-phone').value, salary:+document.getElementById('emp-salary').value||0, status:'active'};
+  const res = await sbInsert('employees', emp);
+  if(res){
+    db.employees.push(res);
+    await sbInsert('wallets',{employee_id:newId, employee_name:name, balance:0});
+    db.wallets.push({empId:newId, empName:name, balance:0, history:[]});
+    await addAudit('Admin','إضافة موظف',name);
+    closeModal('modal-add-employee');
+    ['emp-name','emp-phone','emp-salary'].forEach(i=>document.getElementById(i).value='');
+    renderEmployees(); showToast('✅ تم إضافة الموظف');
+  }
+}
+
+function renderEmployees(){
+  const sel = document.getElementById('emp-team-sel');
+  if(sel) sel.innerHTML='<option value="">-- لا يوجد --</option>'+db.teams.map(t=>`<option value="${t.name}">${t.name}</option>`).join('');
+  document.getElementById('employees-tbody').innerHTML = db.employees.map(e=>`<tr>
+    <td>${e.id}</td><td>${e.name}</td><td>${e.role}</td><td>${e.team||'-'}</td><td>${e.phone||'-'}</td>
+    <td>${(e.salary||0).toLocaleString()} AED</td>
+    <td><span class="badge ${e.status==='active'?'badge-green':'badge-gray'}">${e.status==='active'?'نشط':'موقوف'}</span></td>
+    <td><button class="btn btn-outline btn-sm" onclick="toggleEmp('${e.id}','${e.status}')">${e.status==='active'?'توقيف':'تفعيل'}</button></td>
+  </tr>`).join('');
+}
+
+async function toggleEmp(id, currentStatus){
+  const newStatus = currentStatus==='active'?'inactive':'active';
+  await sbUpdate('employees', id, {status:newStatus});
+  const e=db.employees.find(x=>x.id===id);
+  if(e){ e.status=newStatus; renderEmployees(); }
+}
+
+// ========== TEAMS ==========
+async function addTeam(){
+  const name = document.getElementById('team-name').value.trim();
+  if(!name){ showToast('⚠️ أدخل اسم الفريق'); return; }
+  const res = await sbInsert('teams',{name, spec:document.getElementById('team-spec').value, status:'active'});
+  if(res){
+    db.teams.push(res);
+    await addAudit('Admin','إضافة فريق',name);
+    closeModal('modal-add-team'); document.getElementById('team-name').value='';
+    renderTeams(); showToast('✅ تم إضافة الفريق');
+  }
+}
+
+function renderTeams(){
+  document.getElementById('teams-tbody').innerHTML = db.teams.length ? db.teams.map(t=>{
+    const members = db.employees.filter(e=>e.team===t.name).length;
+    const done = db.orders.filter(o=>o.team===t.name&&o.status==='completed').length;
+    return `<tr><td>${t.name}</td><td>${t.spec}</td><td>${members}</td><td>${done}</td><td><span class="badge badge-green">نشط</span></td><td><button class="btn btn-danger btn-sm" onclick="deleteTeam('${t.id}')">🗑️</button></td></tr>`;
+  }).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">لا يوجد فرق</td></tr>';
+}
+
+async function deleteTeam(id){ if(confirm('حذف الفريق؟')){ await sbDelete('teams',id); db.teams=db.teams.filter(t=>t.id!==id); renderTeams(); } }
+
+// ========== EXPENSES ==========
+function populateEmpSelects2(){
+  const s=document.getElementById('exp-emp');
+  s.innerHTML='<option value="">-- عام --</option>'+db.employees.map(e=>`<option value="${e.name}">${e.name}</option>`).join('');
+  document.getElementById('exp-date').value=new Date().toISOString().slice(0,10);
+}
+
+async function addExpense(){
+  const desc=document.getElementById('exp-desc').value.trim();
+  if(!desc){ showToast('⚠️ أدخل وصف المصروف'); return; }
+  const res = await sbInsert('expenses',{description:desc, category:document.getElementById('exp-cat').value, amount:+document.getElementById('exp-amount').value||0, employee:document.getElementById('exp-emp').value, date:document.getElementById('exp-date').value||null});
+  if(res){
+    db.expenses.unshift({...res, desc:res.description});
+    await addAudit('Admin','إضافة مصروف',`${desc} — ${res.amount} AED`);
+    closeModal('modal-add-expense'); ['exp-desc','exp-amount'].forEach(i=>document.getElementById(i).value='');
+    renderExpenses(); showToast('✅ تم إضافة المصروف');
+  }
+}
+
+function renderExpenses(){
+  const total=db.expenses.reduce((s,e)=>s+(+e.amount||0),0);
+  const parts=db.expenses.filter(e=>e.category==='قطع غيار').reduce((s,e)=>s+(+e.amount||0),0);
+  const trans=db.expenses.filter(e=>e.category==='مواصلات').reduce((s,e)=>s+(+e.amount||0),0);
+  document.getElementById('exp-total').textContent=total.toLocaleString()+' AED';
+  document.getElementById('exp-parts').textContent=parts.toLocaleString()+' AED';
+  document.getElementById('exp-transport').textContent=trans.toLocaleString()+' AED';
+  document.getElementById('expenses-tbody').innerHTML=db.expenses.length ? db.expenses.map(e=>`<tr>
+    <td>${e.desc||e.description}</td><td>${e.category}</td><td>${(+e.amount||0).toLocaleString()} AED</td><td>${e.employee||'عام'}</td>
+    <td>${e.date||'-'}</td><td><button class="btn btn-danger btn-sm" onclick="deleteExpense('${e.id}')">🗑️</button></td>
+  </tr>`).join('') : '<tr><td colspan="6" style="text-align:center;color:var(--muted);padding:24px;">لا توجد مصاريف</td></tr>';
+}
+
+async function deleteExpense(id){ if(confirm('حذف؟')){ await sbDelete('expenses',id); db.expenses=db.expenses.filter(e=>e.id!==id); renderExpenses(); } }
+
+// ========== INVOICES ==========
+function populateCustomerSelects(){
+  ['inv-customer','quot-customer'].forEach(id=>{
+    const s=document.getElementById(id);
+    if(s) s.innerHTML='<option value="">-- اختر عميل --</option>'+db.customers.map(c=>`<option value="${c.name}">${c.name}</option>`).join('');
+  });
+  const d=document.getElementById('inv-due');
+  if(d){ const dt=new Date(); dt.setDate(dt.getDate()+7); d.value=dt.toISOString().slice(0,10); }
+}
+
+async function addInvoice(){
+  const cust=document.getElementById('inv-customer').value;
+  if(!cust){ showToast('⚠️ اختر العميل'); return; }
+  const res = await sbInsert('invoices',{customer:cust, amount:+document.getElementById('inv-amount').value||0, due_date:document.getElementById('inv-due').value||null, description:document.getElementById('inv-desc').value, status:'unpaid'});
+  if(res){
+    db.invoices.unshift({...res, num:res.num, due:res.due_date});
+    await addAudit('Admin','إنشاء فاتورة',`INV-${res.num} — ${cust}`);
+    closeModal('modal-add-invoice'); renderInvoices(); showToast('✅ تم إنشاء الفاتورة');
+  }
+}
+
+function renderInvoices(){
+  const total=db.invoices.reduce((s,i)=>s+(+i.amount||0),0);
+  const paid=db.invoices.filter(i=>i.status==='paid').reduce((s,i)=>s+(+i.amount||0),0);
+  document.getElementById('invoices-stats').innerHTML=`<div class="stat-chip">الإجمالي: <span>${total.toLocaleString()} AED</span></div>
+    <div class="stat-chip">مدفوع: <span>${paid.toLocaleString()} AED</span></div>
+    <div class="stat-chip">غير مدفوع: <span>${(total-paid).toLocaleString()} AED</span></div>`;
+  document.getElementById('invoices-tbody').innerHTML=db.invoices.length ? db.invoices.map(i=>`<tr>
+    <td>INV-${i.num}</td><td>${i.customer}</td><td>${(+i.amount||0).toLocaleString()} AED</td>
+    <td>${new Date(i.created_at).toLocaleDateString('ar-AE')}</td><td>${i.due||i.due_date||'-'}</td><td>${statusBadge(i.status)}</td>
+    <td><button class="btn btn-outline btn-sm" onclick="markInvoicePaid('${i.id}')">✅ دفع</button></td>
+  </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px;">لا توجد فواتير</td></tr>';
+}
+
+async function markInvoicePaid(id){
+  await sbUpdate('invoices', id, {status:'paid'});
+  const i=db.invoices.find(x=>x.id===id);
+  if(i){ i.status='paid'; renderInvoices(); showToast('✅ تم تسجيل الدفع'); }
+}
+
+// ========== QUOTATIONS ==========
+async function addQuotation(){
+  const cust=document.getElementById('quot-customer').value;
+  if(!cust){ showToast('⚠️ اختر العميل'); return; }
+  const res = await sbInsert('quotations',{customer:cust, service:document.getElementById('quot-service').value, amount:+document.getElementById('quot-amount').value||0, validity:+document.getElementById('quot-validity').value||7, notes:document.getElementById('quot-notes').value, status:'draft'});
+  if(res){
+    db.quotations.unshift({...res, num:res.num});
+    closeModal('modal-add-quotation'); renderQuotations(); showToast('✅ تم إنشاء عرض السعر');
+  }
+}
+
+function renderQuotations(){
+  document.getElementById('quotations-tbody').innerHTML=db.quotations.length ? db.quotations.map(q=>`<tr>
+    <td>QT-${q.num}</td><td>${q.customer}</td><td>${q.service||'-'}</td><td>${(+q.amount||0).toLocaleString()} AED</td>
+    <td>${new Date(q.created_at).toLocaleDateString('ar-AE')}</td><td>${statusBadge(q.status)}</td>
+    <td>
+      <button class="btn btn-outline btn-sm" onclick="changeQuotStatus('${q.id}','accepted')">✅</button>
+      <button class="btn btn-danger btn-sm" onclick="changeQuotStatus('${q.id}','rejected')">✗</button>
+    </td>
+  </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px;">لا توجد عروض أسعار</td></tr>';
+}
+
+async function changeQuotStatus(id,status){
+  await sbUpdate('quotations', id, {status});
+  const q=db.quotations.find(x=>x.id===id);
+  if(q){ q.status=status; renderQuotations(); }
+}
+
+// ========== SERVICE REPORTS ==========
+function populateOrderSelects(){
+  const s=document.getElementById('rep-order');
+  if(s) s.innerHTML='<option value="">-- اختر طلب --</option>'+db.orders.map(o=>`<option value="${o.num}">#${o.num} — ${o.customerName}</option>`).join('');
+}
+function populateEmpSelects(){
+  const s=document.getElementById('rep-tech');
+  if(s) s.innerHTML='<option value="">-- اختر فني --</option>'+db.employees.map(e=>`<option value="${e.name}">${e.name}</option>`).join('');
+}
+
+async function addReport(){
+  const res = await sbInsert('service_reports',{order_num:document.getElementById('rep-order').value, technician:document.getElementById('rep-tech').value, problem:document.getElementById('rep-problem').value, solution:document.getElementById('rep-solution').value, rating:document.getElementById('rep-rating').value});
+  if(res){
+    db.reports.unshift({...res, order:res.order_num, tech:res.technician});
+    closeModal('modal-add-report');
+    ['rep-problem','rep-solution'].forEach(i=>document.getElementById(i).value='');
+    renderReports(); showToast('✅ تم حفظ التقرير');
+  }
+}
+
+function renderReports(){
+  document.getElementById('reports-tbody').innerHTML=db.reports.length ? [...db.reports].reverse().map(r=>`<tr>
+    <td>#${r.order||'-'}</td><td>${r.tech||'-'}</td><td>-</td>
+    <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.problem||'-'}</td>
+    <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.solution||'-'}</td>
+    <td>${new Date(r.created).toLocaleDateString('ar-AE')}</td><td>${r.rating||'-'}</td>
+  </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px;">لا توجد تقارير</td></tr>';
+}
+
+// ========== WALLETS ==========
+function renderWallets(){
+  document.getElementById('wallets-grid').innerHTML=db.employees.map(e=>{
+    const w=db.wallets.find(x=>x.empId===e.id)||{balance:0};
+    return `<div class="wallet-card">
+      <div class="wallet-name">${e.name.split(' ')[0]} ${e.name.split(' ')[1]||''}</div>
+      <div class="wallet-role">${e.role} · ${e.id}</div>
+      <div class="wallet-balance">${(w.balance||0).toLocaleString()}</div>
+      <div class="wallet-currency">AED</div>
+      <div class="wallet-actions">
+        <button class="btn btn-primary btn-sm" onclick="walletTx('${e.id}','deposit')">+ إيداع</button>
+        <button class="btn btn-outline btn-sm" onclick="walletTx('${e.id}','withdraw')">- سحب</button>
+      </div>
+    </div>`;
+  }).join('');
+  document.getElementById('wallet-history').innerHTML=db.wallets.flatMap(w=>(w.history||[]).map(h=>({...h,emp:w.empName}))).sort((a,b)=>new Date(b.date)-new Date(a.date)).slice(0,30).map(h=>`<tr>
+    <td>${h.emp}</td><td><span class="badge ${h.type==='deposit'?'badge-green':'badge-red'}">${h.type==='deposit'?'إيداع':'سحب'}</span></td>
+    <td>${h.amount.toLocaleString()} AED</td><td>${h.desc||'-'}</td><td>${new Date(h.date).toLocaleDateString('ar-AE')}</td>
+  </tr>`).join('') || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:24px;">لا توجد حركات</td></tr>';
+}
+
+async function walletTx(empId, type){
+  const amount=+prompt(`أدخل المبلغ (${type==='deposit'?'إيداع':'سحب'}):`,0);
+  if(!amount||isNaN(amount)) return;
+  const desc=prompt('الوصف:','')||'';
+  const w=db.wallets.find(x=>x.empId===empId);
+  if(!w) return;
+  const newBal = type==='deposit' ? (w.balance||0)+amount : Math.max(0,(w.balance||0)-amount);
+  await sbUpdate('wallets', w.id, {balance:newBal});
+  await sbInsert('wallet_history',{employee_id:empId, employee_name:w.empName, type, amount, description:desc});
+  w.balance=newBal;
+  if(!w.history) w.history=[];
+  w.history.unshift({type,amount,desc,date:new Date().toISOString(), emp:w.empName});
+  await addAudit('Admin',type==='deposit'?'إيداع محفظة':'سحب محفظة',`${empId} — ${amount} AED`);
+  renderWallets(); showToast('✅ تم');
+}
+
+// ========== PAYROLL ==========
+function renderPayroll(){
+  const totalSalaries=db.employees.reduce((s,e)=>s+(+e.salary||0),0);
+  document.getElementById('payroll-summary').innerHTML=`
+    <div class="payroll-item"><div class="val">${db.employees.length}</div><div class="lbl">موظفين</div></div>
+    <div class="payroll-item"><div class="val" style="color:var(--accent)">${totalSalaries.toLocaleString()}</div><div class="lbl">إجمالي الرواتب AED</div></div>
+    <div class="payroll-item"><div class="val" style="color:var(--accent2)">${(totalSalaries*0.85).toLocaleString().split('.')[0]}</div><div class="lbl">صافي بعد الخصومات</div></div>`;
+  document.getElementById('payroll-tbody').innerHTML=db.employees.map(e=>{
+    const incentive=db.orders.filter(o=>o.employee===e.name&&o.status==='completed').length*50;
+    const deduct=0;
+    const net=(+e.salary||0)+incentive-deduct;
+    return `<tr><td>${e.name}</td><td>${e.role}</td><td>${(+e.salary||0).toLocaleString()} AED</td>
+      <td style="color:var(--accent2)">${incentive} AED</td><td>${deduct} AED</td>
+      <td style="font-weight:700">${net.toLocaleString()} AED</td>
+      <td><span class="badge badge-warn">معلق</span></td></tr>`;
+  }).join('');
+}
+
+async function processPayroll(){
+  if(!confirm('تأكيد صرف الرواتب لهذا الشهر؟')) return;
+  for(const e of db.employees){
+    const net=(+e.salary||0);
+    const incentive=db.orders.filter(o=>o.employee===e.name&&o.status==='completed').length*50;
+    const total=net+incentive;
+    const w=db.wallets.find(x=>x.empId===e.id);
+    if(w){
+      const newBal=(w.balance||0)+total;
+      await sbUpdate('wallets', w.id, {balance:newBal});
+      await sbInsert('wallet_history',{employee_id:e.id, employee_name:e.name, type:'deposit', amount:total, description:`راتب شهري + حوافز ${incentive} AED`});
+      w.balance=newBal;
+    }
+  }
+  await addAudit('Admin','صرف رواتب','تم صرف رواتب جميع الموظفين');
+  showToast('✅ تم صرف الرواتب وإضافتها للمحافظ');
+  renderPayroll(); renderWallets();
+}
+
+// ========== FINANCIAL REPORTS ==========
+function renderFinancialReports(){
+  const rev=db.orders.filter(o=>o.status==='completed').reduce((s,o)=>s+(+o.amount||0),0);
+  const exp=db.expenses.reduce((s,e)=>s+(+e.amount||0),0);
+  const profit=rev-exp;
+  const margin=rev>0?Math.round((profit/rev)*100):0;
+  document.getElementById('fr-revenue').textContent=rev.toLocaleString()+' AED';
+  document.getElementById('fr-expenses').textContent=exp.toLocaleString()+' AED';
+  document.getElementById('fr-profit').textContent=profit.toLocaleString()+' AED';
+  document.getElementById('fr-profit').style.color=profit>=0?'var(--accent2)':'var(--danger)';
+  document.getElementById('fr-margin').textContent=margin+'%';
+
+  const c3=document.getElementById('chart-finance');
+  if(c3._chart) c3._chart.destroy();
+  c3._chart=new Chart(c3,{type:'bar',data:{labels:['الإيرادات','المصاريف','الربح'],datasets:[{data:[rev,exp,Math.max(0,profit)],backgroundColor:['rgba(56,217,169,.7)','rgba(255,107,107,.7)','rgba(79,142,247,.7)'],borderRadius:8}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#6b7280'}},y:{ticks:{color:'#6b7280'},grid:{color:'rgba(255,255,255,.05)'}}}}});
+
+  const svcMap={};
+  db.orders.forEach(o=>{const k=(o.service||'أخرى').split('|')[0].trim(); svcMap[k]=(svcMap[k]||0)+1;});
+  const c4=document.getElementById('chart-services');
+  if(c4._chart) c4._chart.destroy();
+  c4._chart=new Chart(c4,{type:'pie',data:{labels:Object.keys(svcMap),datasets:[{data:Object.values(svcMap),backgroundColor:['#4f8ef7','#38d9a9','#ffa94d','#ff6b6b','#748ffc','#da77f2','#66d9e8'],borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#6b7280',font:{size:10},boxWidth:10,padding:8}}}}});
+}
+
+// ========== AUDIT ==========
+function renderAudit(){
+  document.getElementById('audit-tbody').innerHTML=db.audit.length ? db.audit.slice(0,50).map(a=>`<tr><td style="white-space:nowrap">${a.time}</td><td>${a.user}</td><td>${a.action}</td><td>${a.details}</td></tr>`).join('') : '<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;">لا توجد سجلات</td></tr>';
+}
+
+// ========== SYSTEM RESET ==========
+async function resetSystem(){
+  const tables=['audit_log','wallet_history','wallets','service_reports','quotations','invoices','expenses','orders','teams','customers'];
+  for(const t of tables){
+    await sb.from(t).delete().neq('id','00000000-0000-0000-0000-000000000000');
+  }
+  // Keep employees and recreate wallets
+  const empRows = await sbGet('employees','id');
+  for(const e of empRows){
+    await sbInsert('wallets',{employee_id:e.id, employee_name:e.name, balance:0});
+  }
+  location.reload();
+}
+
+// ========== INIT ==========
+loadAll();
+</script>
+</body>
+</html>
